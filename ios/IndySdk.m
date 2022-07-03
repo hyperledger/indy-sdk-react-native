@@ -253,6 +253,24 @@ RCT_EXTERN_METHOD(proverGetCredentials: (NSString *)filter walletHandle:(nonnull
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(proverSearchCredentials: (nonnull NSNumber *)walletHandle
+                  queryJSON: (NSString *)queryJSON
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject
+                  )
+
+RCT_EXTERN_METHOD(proverFetchCredentials: (nonnull NSNumber *)searchHandle
+                  count: (nonnull NSNumber *)count
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject
+                  )
+
+RCT_EXTERN_METHOD(proverCloseCredentialsSearch: (nonnull NSNumber *)searchHandle
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject
+                  )
+
+
 RCT_EXTERN_METHOD(proverGetCredential: (NSString *)credId walletHandle:(nonnull NSNumber *)walletHandle
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)

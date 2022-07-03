@@ -435,6 +435,27 @@ class IndySdk : NSObject {
       IndyAnoncreds.proverGetCredentials(forFilter: filterJSON, walletHandle: whNumber, completion: completionWithString(resolve, reject))
     }
     
+    @objc func proverSearchCredentials(_ walletHandle: NSNumber, queryJSON: String,
+                                  resolver resolve: @escaping RCTPromiseResolveBlock,
+                                  rejecter reject: @escaping RCTPromiseRejectBlock) -> Void {
+      let whNumber:Int32  = Int32(truncating:walletHandle)
+      IndyAnoncreds.proverSearchCredentials(forQuery: queryJSON, walletHandle:whNumber, completion: completionWithNumberAndString(resolve, reject))
+    }
+
+    @objc func proverFetchCredentials(_ searchHandle:NSNumber, count: NSNumber,
+                                  resolver resolve: @escaping RCTPromiseResolveBlock,
+                                  rejecter reject: @escaping RCTPromiseRejectBlock) -> Void {
+      let shNumber:Int32 = Int32(truncating: searchHandle)
+      IndyAnoncreds.proverFetchCredentials(withSearchHandle: shNumber, count: count, completion: completionWithString(resolve, reject))
+    }
+
+    @objc func proverCloseCredentialsSearch(_ searchHandle:NSNumber,
+                                  resolver resolve: @escaping RCTPromiseResolveBlock,
+                                  rejecter reject: @escaping RCTPromiseRejectBlock) -> Void {
+      let shNumber:Int32 = Int32(truncating: searchHandle)
+      IndyAnoncreds.proverCloseCredentialsSearch(withHandle: shNumber, completion: completion(resolve, reject))
+    }
+    
     @objc func proverGetCredential(_ credId: String, walletHandle: NSNumber,
                                         resolver resolve: @escaping RCTPromiseResolveBlock,
                                         rejecter reject: @escaping RCTPromiseRejectBlock) -> Void {
@@ -718,6 +739,20 @@ class IndySdk : NSObject {
           reject("\(code)", createJsonError(error!, code), error)
         } else {
           resolve([string1, string2, number1])
+        }
+      }
+      
+      return completion
+    }
+    
+    func completionWithNumberAndString(_ resolve: @escaping RCTPromiseResolveBlock,
+                                  _ reject: @escaping RCTPromiseRejectBlock) -> (_ error: Error?, _ number1: NSNumber?, _ string1: String?) -> Void {
+      func completion(error: Error?, number1: NSNumber?, string1: String?) -> Void {
+        let code = (error! as NSError).code
+        if code != 0 {
+          reject("\(code)", createJsonError(error!, code), error)
+        } else {
+          resolve([number1, string1])
         }
       }
       

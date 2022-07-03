@@ -662,9 +662,17 @@ const indy = {
     return JSON.parse(await IndySdk.proverGetCredentials(wh, JSON.stringify(filter)))
   },
 
-  // TODO: add proverSearchCredentials() method
-  // TODO: add proverFetchCredentials() method
-  // TODO: add proverCloseCredentialsSearch() method
+  async proverSearchCredentials(wh: WalletHandle, filter: {} = {}): Promise<[WalletSearchHandle, number]> {
+    return await IndySdk.proverSearchCredentials(wh, JSON.stringify(filter))
+  },
+
+  async proverFetchCredentials(sh: WalletSearchHandle, count: number): Promise<Credential[]> {
+    return JSON.parse(await IndySdk.proverFetchCredentials(sh, count))
+  },
+
+  async proverCloseCredentialsSearch(sh: WalletSearchHandle) {
+    await IndySdk.proverCloseCredentialsSearch(sh)
+  },
 
   // TODO Add return flow type.
   // It needs little investigation, because is doesn't seem to be same format as Credential stored in wallet.

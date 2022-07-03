@@ -51,6 +51,7 @@ import org.hyperledger.indy.sdk.pairwise.Pairwise;
 import org.hyperledger.indy.sdk.pool.Pool;
 import org.hyperledger.indy.sdk.wallet.Wallet;
 import org.hyperledger.indy.sdk.anoncreds.CredentialsSearchForProofReq;
+import org.hyperledger.indy.sdk.anoncreds.CredentialsSearch;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -62,20 +63,22 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
     private static final String TAG = "IndySdk";
     private final ReactApplicationContext reactContext;
 
-    private static  Map<Integer, Wallet> walletMap = new ConcurrentHashMap<>();
+    private static Map<Integer, Wallet> walletMap = new ConcurrentHashMap<>();
     private static Map<String, Integer> walletIdToHandleMap = new ConcurrentHashMap<>();
     private static Map<Integer, Pool> poolMap = new ConcurrentHashMap<>();
     private static Map<String, Integer> poolNameToHandleMap = new ConcurrentHashMap<>();
     private static Map<Integer, WalletSearch> searchMap = new ConcurrentHashMap<>();
-    private Map<Integer, CredentialsSearchForProofReq> credentialSearchMap;
+    private static Map<Integer, WalletSearch> searchCredential = new ConcurrentHashMap<>();
+    private Map<Integer, CredentialsSearchForProofReq> credentialsForProofReqSearchMap;
+    private Map<Integer, CredentialsSearch> credentialsSearchMap;
     // Java wrapper does not expose credentialSearchHandle
     private int credentialSearchIterator = 0;
-
 
     public IndySdkModule(ReactApplicationContext reactContext) {
         super(reactContext);
         this.reactContext = reactContext;
-        this.credentialSearchMap = new ConcurrentHashMap<>();
+        this.credentialsForProofReqSearchMap = new ConcurrentHashMap<>();
+        this.credentialsSearchMap = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -167,7 +170,7 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void importWallet(String config, String credentials, String importConfig, Promise promise) {
         try {
-            Wallet.importWallet(config, credentials ,importConfig).get();
+            Wallet.importWallet(config, credentials, importConfig).get();
             promise.resolve(null);
         } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
@@ -188,7 +191,7 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
             promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
         }
     }
-	
+
     @ReactMethod
     public void setDidMetadata(int walletHandle, String did, String metadataJson, Promise promise) {
         try {
@@ -200,7 +203,7 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
             promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
         }
     }
-	
+
     @ReactMethod
     public void createAndStoreMyDid(int walletHandle, String didJson, Promise promise) {
         try {
@@ -307,9 +310,10 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void cryptoAnonDecrypt(int walletHandle, String recipientVk, ReadableArray encryptedMessage, Promise promise) {
+    public void cryptoAnonDecrypt(int walletHandle, String recipientVk, ReadableArray encryptedMessage,
+            Promise promise) {
         try {
-            byte [] encryptedMessageBytes = readableArrayToBuffer(encryptedMessage);
+            byte[] encryptedMessageBytes = readableArrayToBuffer(encryptedMessage);
             Wallet wallet = walletMap.get(walletHandle);
             byte[] decryptedData = Crypto.anonDecrypt(wallet, recipientVk, encryptedMessageBytes).get();
             promise.resolve(decryptedData);
@@ -321,7 +325,8 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     @Deprecated
-    public void cryptoAuthCrypt(int walletHandle, String senderVk, String recipientVk, ReadableArray message, Promise promise) {
+    public void cryptoAuthCrypt(int walletHandle, String senderVk, String recipientVk, ReadableArray message,
+            Promise promise) {
         try {
             byte[] buffer = readableArrayToBuffer(message);
             Wallet wallet = walletMap.get(walletHandle);
@@ -339,11 +344,13 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     @Deprecated
-    public void cryptoAuthDecrypt(int walletHandle, String recipientVk, ReadableArray encryptedMessage, Promise promise) {
+    public void cryptoAuthDecrypt(int walletHandle, String recipientVk, ReadableArray encryptedMessage,
+            Promise promise) {
         try {
             byte[] encryptedMessageBytes = readableArrayToBuffer(encryptedMessage);
             Wallet wallet = walletMap.get(walletHandle);
-            CryptoResults.AuthDecryptResult decryptedResult = Crypto.authDecrypt(wallet, recipientVk, encryptedMessageBytes).get();
+            CryptoResults.AuthDecryptResult decryptedResult = Crypto
+                    .authDecrypt(wallet, recipientVk, encryptedMessageBytes).get();
             String theirKey = decryptedResult.getVerkey();
 
             WritableArray decryptedData = new WritableNativeArray();
@@ -392,9 +399,9 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
         }
     }
 
-
     @ReactMethod
-    public void packMessage(int walletHandle, ReadableArray message, ReadableArray receiverKeys, String senderVk, Promise promise) {
+    public void packMessage(int walletHandle, ReadableArray message, ReadableArray receiverKeys, String senderVk,
+            Promise promise) {
         try {
             Wallet wallet = walletMap.get(walletHandle);
             byte[] buffer = readableArrayToBuffer(message);
@@ -462,11 +469,11 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void openPoolLedger(final String configName, final String poolConfig, final Promise promise) {
-        new Thread(new Runnable(){
+        new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
-                    if (poolNameToHandleMap.get(configName) != null){
+                    if (poolNameToHandleMap.get(configName) != null) {
                         promise.resolve(poolNameToHandleMap.get(configName));
 
                     } else {
@@ -485,7 +492,7 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void closePoolLedger(final int handle, final Promise promise) {
-        new Thread(new Runnable(){
+        new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
@@ -514,7 +521,7 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void submitRequest(final int poolHandle, final String requestJson, final Promise promise) {
-        new Thread(new Runnable(){
+        new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
@@ -627,13 +634,13 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void parseGetRevocRegDefResponse(String response, Promise promise) {
-        try{
+        try {
             LedgerResults.ParseResponseResult ledgerResult = Ledger.parseGetRevocRegDefResponse(response).get();
             WritableArray result = new WritableNativeArray();
             result.pushString(ledgerResult.getId());
             result.pushString(ledgerResult.getObjectJson());
             promise.resolve(result);
-        } catch(Exception e) {
+        } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
             promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
         }
@@ -641,31 +648,31 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void buildGetRevocRegDeltaRequest(
-        String submitterDid,
-        String revocRegDefId,
-        int from,
-        int to,
-        Promise promise
-    ){
-        try{
-            String request = Ledger.buildGetRevocRegDeltaRequest(submitterDid,revocRegDefId,from,to).get();
+            String submitterDid,
+            String revocRegDefId,
+            int from,
+            int to,
+            Promise promise) {
+        try {
+            String request = Ledger.buildGetRevocRegDeltaRequest(submitterDid, revocRegDefId, from, to).get();
             promise.resolve(request);
-        }catch(Exception e) { 
+        } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
             promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
         }
     }
 
     @ReactMethod
-    public void parseGetRevocRegDeltaResponse(String getRevocRegDeltaResponse, Promise promise){
-        try{
-            LedgerResults.ParseRegistryResponseResult ledgerResult = Ledger.parseGetRevocRegDeltaResponse(getRevocRegDeltaResponse).get();
+    public void parseGetRevocRegDeltaResponse(String getRevocRegDeltaResponse, Promise promise) {
+        try {
+            LedgerResults.ParseRegistryResponseResult ledgerResult = Ledger
+                    .parseGetRevocRegDeltaResponse(getRevocRegDeltaResponse).get();
             WritableArray result = new WritableNativeArray();
             result.pushString(ledgerResult.getId());
             result.pushString(ledgerResult.getObjectJson());
             result.pushInt((int) ledgerResult.getTimestamp());
             promise.resolve(result);
-        }catch(Exception e){
+        } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
             promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
         }
@@ -673,37 +680,38 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void buildGetRevocRegRequest(
-        String submitterDid,
-        String revocRegDefId,
-        int timestamp,
-        Promise promise
-    ){
-        try{
-            String request = Ledger.buildGetRevocRegRequest(submitterDid,revocRegDefId,timestamp).get();
+            String submitterDid,
+            String revocRegDefId,
+            int timestamp,
+            Promise promise) {
+        try {
+            String request = Ledger.buildGetRevocRegRequest(submitterDid, revocRegDefId, timestamp).get();
             promise.resolve(request);
-        }catch(Exception e) { 
+        } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
             promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
         }
     }
 
     @ReactMethod
-    public void parseGetRevocRegResponse(String getRevocRegResponse, Promise promise){
-        try{
-            LedgerResults.ParseRegistryResponseResult ledgerResult = Ledger.parseGetRevocRegResponse(getRevocRegResponse).get();
+    public void parseGetRevocRegResponse(String getRevocRegResponse, Promise promise) {
+        try {
+            LedgerResults.ParseRegistryResponseResult ledgerResult = Ledger
+                    .parseGetRevocRegResponse(getRevocRegResponse).get();
             WritableArray result = new WritableNativeArray();
             result.pushString(ledgerResult.getId());
             result.pushString(ledgerResult.getObjectJson());
             result.pushInt((int) ledgerResult.getTimestamp());
             promise.resolve(result);
-        }catch(Exception e){
+        } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
             promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
         }
     }
 
     @ReactMethod
-    public void buildGetAttribRequest(String submitterDid, String targetDid, String raw, String hash, String enc, Promise promise) {
+    public void buildGetAttribRequest(String submitterDid, String targetDid, String raw, String hash, String enc,
+            Promise promise) {
         try {
             String request = Ledger.buildGetAttribRequest(submitterDid, targetDid, raw, hash, enc).get();
             promise.resolve(request);
@@ -736,9 +744,12 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void appendTxnAuthorAgreementAcceptanceToRequest(String requestJson, String text, String version, String taaDigest, String mechanism, int time, Promise promise) {
+    public void appendTxnAuthorAgreementAcceptanceToRequest(String requestJson, String text, String version,
+            String taaDigest, String mechanism, int time, Promise promise) {
         try {
-            String request = Ledger.appendTxnAuthorAgreementAcceptanceToRequest(requestJson, text, version, taaDigest, mechanism, time).get();
+            String request = Ledger
+                    .appendTxnAuthorAgreementAcceptanceToRequest(requestJson, text, version, taaDigest, mechanism, time)
+                    .get();
             promise.resolve(request);
         } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
@@ -757,7 +768,6 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
         }
     }
 
-    
     // anoncreds
 
     @ReactMethod
@@ -768,50 +778,56 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
             response.pushString(schemaResult.getSchemaId());
             response.pushString(schemaResult.getSchemaJson());
             promise.resolve(response);
-        } catch(Exception e) {
+        } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
             promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
         }
     }
-    
+
     @ReactMethod
-    public void issuerCreateAndStoreCredentialDef(int walletHandle, String issuerDid, String schemaJson, String tag, String signatureType, String configJson, Promise promise) {
+    public void issuerCreateAndStoreCredentialDef(int walletHandle, String issuerDid, String schemaJson, String tag,
+            String signatureType, String configJson, Promise promise) {
         try {
             Wallet wallet = walletMap.get(walletHandle);
-            IssuerCreateAndStoreCredentialDefResult schemaResult = Anoncreds.issuerCreateAndStoreCredentialDef(wallet, issuerDid, schemaJson, tag, signatureType, configJson).get();
+            IssuerCreateAndStoreCredentialDefResult schemaResult = Anoncreds
+                    .issuerCreateAndStoreCredentialDef(wallet, issuerDid, schemaJson, tag, signatureType, configJson)
+                    .get();
             WritableArray response = new WritableNativeArray();
             response.pushString(schemaResult.getCredDefId());
             response.pushString(schemaResult.getCredDefJson());
             promise.resolve(response);
-        } catch(Exception e) {
+        } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
             promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
         }
     }
-    
+
     @ReactMethod
-    public void issuerCreateCredential(int walletHandle, String credOffer, String credReq, String credvalues, String revRegId, int blobStorageReaderHandle, Promise promise) {
+    public void issuerCreateCredential(int walletHandle, String credOffer, String credReq, String credvalues,
+            String revRegId, int blobStorageReaderHandle, Promise promise) {
         try {
             Wallet wallet = walletMap.get(walletHandle);
-            IssuerCreateCredentialResult  createCredResult = Anoncreds.issuerCreateCredential(wallet, credOffer, credReq, credvalues, revRegId, blobStorageReaderHandle).get();
+            IssuerCreateCredentialResult createCredResult = Anoncreds
+                    .issuerCreateCredential(wallet, credOffer, credReq, credvalues, revRegId, blobStorageReaderHandle)
+                    .get();
             WritableArray response = new WritableNativeArray();
             response.pushString(createCredResult.getCredentialJson());
             response.pushString(createCredResult.getRevocId());
             response.pushString(createCredResult.getRevocRegDeltaJson());
             promise.resolve(response);
-        } catch(Exception e) {
+        } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
             promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
         }
     }
-    
+
     @ReactMethod
     public void issuerCreateCredentialOffer(int walletHandle, String credDefId, Promise promise) {
         try {
             Wallet wallet = walletMap.get(walletHandle);
             String response = Anoncreds.issuerCreateCredentialOffer(wallet, credDefId).get();
             promise.resolve(response);
-        } catch(Exception e) {
+        } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
             promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
         }
@@ -830,10 +846,14 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void proverCreateCredentialReq(int walletHandle, String proverDid, String credentialOfferJson, String credentialDefJson, String masterSecretId, Promise promise) {
+    public void proverCreateCredentialReq(int walletHandle, String proverDid, String credentialOfferJson,
+            String credentialDefJson, String masterSecretId, Promise promise) {
         try {
             Wallet wallet = walletMap.get(walletHandle);
-            AnoncredsResults.ProverCreateCredentialRequestResult credentialRequestResult = Anoncreds.proverCreateCredentialReq(wallet, proverDid, credentialOfferJson, credentialDefJson, masterSecretId).get();
+            AnoncredsResults.ProverCreateCredentialRequestResult credentialRequestResult = Anoncreds
+                    .proverCreateCredentialReq(wallet, proverDid, credentialOfferJson, credentialDefJson,
+                            masterSecretId)
+                    .get();
             WritableArray response = new WritableNativeArray();
             response.pushString(credentialRequestResult.getCredentialRequestJson());
             response.pushString(credentialRequestResult.getCredentialRequestMetadataJson());
@@ -845,10 +865,13 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void proverStoreCredential(int walletHandle, String credId, String credReqMetadataJson, String credJson, String credDefJson, String revRegDefJson, Promise promise) {
+    public void proverStoreCredential(int walletHandle, String credId, String credReqMetadataJson, String credJson,
+            String credDefJson, String revRegDefJson, Promise promise) {
         try {
             Wallet wallet = walletMap.get(walletHandle);
-            String newCredId = Anoncreds.proverStoreCredential(wallet, credId, credReqMetadataJson, credJson, credDefJson, revRegDefJson).get();
+            String newCredId = Anoncreds
+                    .proverStoreCredential(wallet, credId, credReqMetadataJson, credJson, credDefJson, revRegDefJson)
+                    .get();
             promise.resolve(newCredId);
         } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
@@ -893,17 +916,55 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
+    public void proverSearchCredentials(int walletHandle, String queryJson, Promise promise) {
+        try {
+            int searchHandle = credentialSearchIterator++;
+            Wallet wallet = walletMap.get(walletHandle);
+            CredentialsSearch search = CredentialsSearch.open(wallet, queryJson)
+                    .get();
+            credentialsSearchMap.put(searchHandle, search);
+            promise.resolve([searchHandle, search.totalCount()]);
+        } catch (Exception e) {
+            IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
+            promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
+        }
+    }
+
+    @ReactMethod
+    public void proverFetchCredentials(int searchHandle, int count, Promise promise) {
+        try {
+            CredentialsSearch search = credentialsSearchMap.get(searchHandle);
+            String recordsJson = search.fetchNextCredentials(count).get();
+            promise.resolve(recordsJson);
+        } catch (Exception e) {
+            IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
+            promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
+        }
+    }
+
+    @ReactMethod
+    public void proverCloseCredentialsSearch(int searchHandle, Promise promise) {
+        try {
+            CredentialsSearch search = credentialsSearchMap.get(searchHandle);
+            search.close();
+            credentialsSearchMap.remove(searchHandle);
+            promise.resolve(null);
+        } catch (Exception e) {
+            IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
+            promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
+        }
+    }
+
+    @ReactMethod
     public void proverGetCredentialsForProofReq(
-      int walletHandle,
-			String proofRequest,
-      Promise promise
-      ) {
+            int walletHandle,
+            String proofRequest,
+            Promise promise) {
         try {
             Wallet wallet = walletMap.get(walletHandle);
             String credentials = Anoncreds.proverGetCredentialsForProofReq(
-              wallet, 
-              proofRequest
-            ).get();
+                    wallet,
+                    proofRequest).get();
             promise.resolve(credentials);
         } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
@@ -912,37 +973,39 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void proverSearchCredentialsForProofReq(int walletHandle, String proofRequest, String extraQuery, Promise promise) {
-      try {
-            int searchHandle = credentialSearchIterator++; 
+    public void proverSearchCredentialsForProofReq(int walletHandle, String proofRequest, String extraQuery,
+            Promise promise) {
+        try {
+            int searchHandle = credentialSearchIterator++;
             Wallet wallet = walletMap.get(walletHandle);
-            CredentialsSearchForProofReq search = CredentialsSearchForProofReq.open(wallet, proofRequest, extraQuery).get();
-            credentialSearchMap.put(searchHandle, search);
+            CredentialsSearchForProofReq search = CredentialsSearchForProofReq.open(wallet, proofRequest, extraQuery)
+                    .get();
+            credentialsForProofReqSearchMap.put(searchHandle, search);
             promise.resolve(searchHandle);
-      } catch (Exception e) {
-          IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
-          promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
-      }
+        } catch (Exception e) {
+            IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
+            promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
+        }
     }
 
     @ReactMethod
     public void proverFetchCredentialsForProofReq(int searchHandle, String itemReferent, int count, Promise promise) {
-      try {
-          CredentialsSearchForProofReq search = credentialSearchMap.get(searchHandle);
-          String recordsJson = search.fetchNextCredentials(itemReferent, count).get();
-          promise.resolve(recordsJson);
-      } catch (Exception e) {
-          IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
-          promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
-      }
+        try {
+            CredentialsSearchForProofReq search = credentialsForProofReqSearchMap.get(searchHandle);
+            String recordsJson = search.fetchNextCredentials(itemReferent, count).get();
+            promise.resolve(recordsJson);
+        } catch (Exception e) {
+            IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
+            promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
+        }
     }
 
     @ReactMethod
     public void proverCloseCredentialsSearchForProofReq(int searchHandle, Promise promise) {
         try {
-            CredentialsSearchForProofReq search = credentialSearchMap.get(searchHandle);
+            CredentialsSearchForProofReq search = credentialsForProofReqSearchMap.get(searchHandle);
             search.close();
-            credentialSearchMap.remove(searchHandle);
+            credentialsForProofReqSearchMap.remove(searchHandle);
             promise.resolve(null);
         } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
@@ -952,26 +1015,24 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void proverCreateProof(
-      int walletHandle,
-			String proofRequest,
-			String requestedCredentials,
-			String masterSecret,
-			String schemas,
-			String credentialDefs,
-			String revocStates,
-      Promise promise
-      ) {
+            int walletHandle,
+            String proofRequest,
+            String requestedCredentials,
+            String masterSecret,
+            String schemas,
+            String credentialDefs,
+            String revocStates,
+            Promise promise) {
         try {
             Wallet wallet = walletMap.get(walletHandle);
             String proofJson = Anoncreds.proverCreateProof(
-              wallet, 
-              proofRequest, 
-              requestedCredentials,
-              masterSecret, 
-              schemas, 
-              credentialDefs, 
-              revocStates
-            ).get();
+                    wallet,
+                    proofRequest,
+                    requestedCredentials,
+                    masterSecret,
+                    schemas,
+                    credentialDefs,
+                    revocStates).get();
             promise.resolve(proofJson);
         } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
@@ -981,20 +1042,19 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void verifierVerifyProof(
-        String proofRequest, 
-        String proof, 
-        String schemas, 
-        String credentialDefs, 
-        String revocRegDefs, 
-        String revocRegs, 
-        Promise promise
-    ) {
-        try{
-            Boolean verified = Anoncreds.verifierVerifyProof(proofRequest, proof, schemas, credentialDefs, revocRegDefs, revocRegs).get();
+            String proofRequest,
+            String proof,
+            String schemas,
+            String credentialDefs,
+            String revocRegDefs,
+            String revocRegs,
+            Promise promise) {
+        try {
+            Boolean verified = Anoncreds
+                    .verifierVerifyProof(proofRequest, proof, schemas, credentialDefs, revocRegDefs, revocRegs).get();
 
             promise.resolve(verified);
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
             promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
         }
@@ -1024,30 +1084,30 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void createRevocationState(
-        int blobStorageReaderHandle,
-        String revRegDef,
-        String revRegDelta,
-        int timestamp,
-        String credRevId,
-        Promise promise
-    ){
-        try{
-            String result = Anoncreds.createRevocationState(blobStorageReaderHandle,revRegDef,revRegDelta,timestamp,credRevId).get();
+            int blobStorageReaderHandle,
+            String revRegDef,
+            String revRegDelta,
+            int timestamp,
+            String credRevId,
+            Promise promise) {
+        try {
+            String result = Anoncreds
+                    .createRevocationState(blobStorageReaderHandle, revRegDef, revRegDelta, timestamp, credRevId).get();
             promise.resolve(result);
-        }catch(Exception e){
+        } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
             promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
         }
     }
 
     // blob_storage
-    
+
     @ReactMethod
     public void openBlobStorageReader(String type, String tailsWriterConfig, Promise promise) {
         try {
             BlobStorageReader response = BlobStorageReader.openReader(type, tailsWriterConfig).get();
             promise.resolve(response.getBlobStorageReaderHandle());
-        } catch(Exception e) {
+        } catch (Exception e) {
             IndySdkRejectResponse rejectResponse = new IndySdkRejectResponse(e);
             promise.reject(rejectResponse.getCode(), rejectResponse.toJson(), e);
         }
@@ -1056,7 +1116,8 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
     // non_secrets
 
     @ReactMethod
-    public void addWalletRecord(int walletHandle, String type, String id, String value, String tagsJson, Promise promise) {
+    public void addWalletRecord(int walletHandle, String type, String id, String value, String tagsJson,
+            Promise promise) {
         try {
             Wallet wallet = walletMap.get(walletHandle);
             WalletRecord.add(wallet, type, id, value, tagsJson).get();
@@ -1189,7 +1250,8 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
 
         private IndySdkRejectResponse(Throwable e) {
             // Indy bridge exposed API should return consistently only numeric code
-            // When we don't get IndyException and Indy SDK error code we return zero as default
+            // When we don't get IndyException and Indy SDK error code we return zero as
+            // default
             indyCode = 0;
 
             if (e instanceof ExecutionException) {
@@ -1197,7 +1259,7 @@ public class IndySdkModule extends ReactContextBaseJavaModule {
                 if (cause instanceof IndyException) {
                     IndyException indyException = (IndyException) cause;
                     indyCode = indyException.getSdkErrorCode();
-                    
+
                     ErrorCode errorCode = ErrorCode.valueOf(indyCode);
                     indyName = errorCode.toString();
                     message = indyName;
