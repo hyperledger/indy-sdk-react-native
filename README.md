@@ -16,7 +16,7 @@ Link (for React Native lower than 0.60)
 
 ## Android
 
-See https://github.com/TimoGlastra/ExampleRnIndySDK for an example android react native project that follows this tutorial.
+See https://github.com/TheTreek/rn-indy-demo for an example android react native project that follows this tutorial.
 
 ### 1. Set min SDK version
 
